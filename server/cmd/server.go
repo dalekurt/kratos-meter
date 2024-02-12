@@ -3,14 +3,27 @@ package main
 
 import (
 	"fmt"
+	"github.com/joho/godotenv"
 	"go.temporal.io/sdk/client"
 	"log"
 	"net/http"
+	"os"
 )
 
 func main() {
-	// Initialize Temporal client (placeholder for actual setup)
-	temporalClient, err := client.NewClient(client.Options{})
+	// Load .env file
+	if err := godotenv.Load("../.env"); err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+
+	// Use os.Getenv to read the environment variables
+	temporalHost := os.Getenv("TEMPORAL_HOST")
+	temporalPort := os.Getenv("TEMPORAL_PORT")
+
+	// Initialize Temporal client with environment variables
+	temporalClient, err := client.NewClient(client.Options{
+		HostPort: temporalHost + ":" + temporalPort,
+	})
 	if err != nil {
 		log.Fatalf("Failed to create Temporal client: %v", err)
 	}
@@ -19,6 +32,11 @@ func main() {
 	// Define HTTP route handlers
 	http.HandleFunc("/jobs", jobsHandler)
 	http.HandleFunc("/jobs/{id}", jobStatusHandler)
+
+	// Test endpoint
+	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Test endpoint reached successfully")
+	})
 
 	// Start the HTTP server
 	port := "8080"
