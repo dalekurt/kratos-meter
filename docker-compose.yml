@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "${SERVER_PORT}:8080"
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_HOST: ${TEMPORAL_HOST}
+      TEMPORAL_PORT: ${TEMPORAL_PORT}
+
+  worker:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_HOST: ${TEMPORAL_HOST}
+      TEMPORAL_PORT: ${TEMPORAL_PORT}
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT}:3000"
+
+  # temporal 
+  temporal:
+    image: temporalio/auto-setup:1.12.3
+    ports:
+      - "7233:7233" # Frontend service
+      - "7234:7234" # History service
+      - "7235:7235" # Matching service
+      - "7239:7239" # Web UI
+    environment:
+      - "DB=postgresql"
+      - "DB_PORT=5432"
+      - "POSTGRES_USER=temporal"
+      - "POSTGRES_PWD=temporal-password"
+      - "POSTGRES_SEEDS=temporal-postgresql"
+      - "DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml"
+
+  temporal-postgresql:
+    image: postgres:13
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal-password
+      POSTGRES_DB: temporal
+
+  grafana:
+    image: grafana/grafana:8.2.1
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
+  prometheus:
+    image: prom/prometheus:v2.22.0
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
