@@ -1,16 +1,17 @@
-// server/api/handlers.go
 package api
 
 import (
 	"context"
-	"github.com/dalekurt/kratos-meter/server/api"
+	"net/http"
+
 	"github.com/dalekurt/kratos-meter/server/models"
+	"github.com/dalekurt/kratos-meter/server/utils"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.temporal.io/sdk/client"
-	"net/http"
 )
 
+// CreateJob is a Gin handler function that creates a new job, saves it to MongoDB, and starts a Temporal workflow.
 func CreateJob(mongoCollection *mongo.Collection, temporalClient client.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var job models.Job
@@ -19,31 +20,29 @@ func CreateJob(mongoCollection *mongo.Collection, temporalClient client.Client) 
 			return
 		}
 
-		// Generate unique ID and set initial status
-		job.ID = generateUniqueID() // TODO: Implement this function
+		// Generate unique ID for the job and set initial status
+		job.ID = utils.GenerateUniqueID() // Make sure to implement this function in the utils package
 		job.Status = "Pending"
 
 		// Insert job into MongoDB
-		_, err := mongoCollection.InsertOne(context.Background(), job)
-		if err != nil {
+		if _, err := mongoCollection.InsertOne(context.Background(), job); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create job in the database"})
 			return
 		}
 
 		// Start a Temporal workflow for the job
-		we, err := temporalClient.ExecuteWorkflow(context.Background(), client.StartWorkflowOptions{
+		// Make sure your workflow function is correctly implemented in the workflows package
+		if _, err := temporalClient.ExecuteWorkflow(context.Background(), client.StartWorkflowOptions{
 			ID:        "loadTestJob_" + job.ID,
 			TaskQueue: "kratosMeterTaskQueue",
-		}, "LoadTestWorkflow", job) // Ensure "LoadTestWorkflow" matches your actual workflow function name
-		if err != nil {
+		}, "LoadTestWorkflow", job); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start load test workflow"})
 			return
 		}
 
 		c.JSON(http.StatusAccepted, gin.H{
-			"message":    "Job created and workflow started",
-			"workflowID": we.GetID(),
-			"runID":      we.GetRunID(),
+			"message": "Job created and workflow started",
+			"jobID":   job.ID,
 		})
 	}
 }
