@@ -2,8 +2,8 @@
 package main
 
 import (
-	"github.com/dalekurt/kratos-meter/db"
 	"github.com/dalekurt/kratos-meter/server/api"
+	"github.com/dalekurt/kratos-meter/server/db"
 	"github.com/gin-gonic/gin"
 	"go.temporal.io/sdk/client"
 	"log"

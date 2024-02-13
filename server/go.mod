@@ -1,3 +1,4 @@
+// server/go.mod
 module github.com/dalekurt/kratos-meter
 
 go 1.21.7

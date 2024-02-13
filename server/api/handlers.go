@@ -3,8 +3,8 @@ package api
 
 import (
 	"context"
-	"github.com/dalekurt/kratos-meter/models"
-	"github.com/dalekurt/kratos-meter/server"
+	"github.com/dalekurt/kratos-meter/server/api"
+	"github.com/dalekurt/kratos-meter/server/models"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.temporal.io/sdk/client"

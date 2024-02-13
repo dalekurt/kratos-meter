@@ -1,4 +1,4 @@
-// models/job.go
+// server/models/job.go
 package models
 
 type Job struct {
