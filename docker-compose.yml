@@ -1,50 +1,73 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  server:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    ports:
-      - "${SERVER_PORT}:8080"
-    depends_on:
-      - temporal
-    environment:
-      TEMPORAL_HOST: ${TEMPORAL_HOST}
-      TEMPORAL_PORT: ${TEMPORAL_PORT}
+  # server:
+  #   build:
+  #     context: ./server
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "${SERVER_PORT}:8080"
+  #   depends_on:
+  #     - temporal
+  #   environment:
+  #     TEMPORAL_HOST: ${TEMPORAL_HOST}
+  #     TEMPORAL_PORT: ${TEMPORAL_PORT}
 
-  worker:
-    build:
-      context: ./workers
-      dockerfile: Dockerfile
-    depends_on:
-      - temporal
-    environment:
-      TEMPORAL_HOST: ${TEMPORAL_HOST}
-      TEMPORAL_PORT: ${TEMPORAL_PORT}
+  # worker:
+  #   build:
+  #     context: ./workers
+  #     dockerfile: Dockerfile
+  #   depends_on:
+  #     - temporal
+  #   environment:
+  #     TEMPORAL_HOST: ${TEMPORAL_HOST}
+  #     TEMPORAL_PORT: ${TEMPORAL_PORT}
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "${FRONTEND_PORT}:3000"
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "${FRONTEND_PORT}:3000"
 
-  # temporal 
+  # temporal
   temporal:
-    image: temporalio/auto-setup:1.12.3
-    ports:
-      - "7233:7233" # Frontend service
-      - "7234:7234" # History service
-      - "7235:7235" # Matching service
-      - "7239:7239" # Web UI
+    depends_on:
+      - temporal-postgresql
     environment:
-      - "DB=postgresql"
-      - "DB_PORT=5432"
-      - "POSTGRES_USER=temporal"
-      - "POSTGRES_PWD=temporal-password"
-      - "POSTGRES_SEEDS=temporal-postgresql"
-      - "DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml"
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=temporal-postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+    image: temporalio/auto-setup:${TEMPORAL_VERSION}
+    ports:
+      - 7233:7233
+    labels:
+      kompose.volume.type: configMap
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
+  temporal-admin-tools:
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    image: temporalio/admin-tools:${TEMPORAL_VERSION}
+    stdin_open: true
+    tty: true
+
+  temporal-ui:
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    image: temporalio/ui:${TEMPORAL_UI_VERSION}
+    ports:
+      - 8080:8080
 
   temporal-postgresql:
     image: postgres:13
@@ -52,22 +75,51 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: temporal
-      POSTGRES_PASSWORD: temporal-password
+      POSTGRES_PASSWORD: temporal
       POSTGRES_DB: temporal
-
-  grafana:
-    image: grafana/grafana:8.2.1
-    ports:
-      - "3001:3000"
-    depends_on:
-      - prometheus
+    volumes:
+      - /var/lib/postgresql/data
 
   prometheus:
-    image: prom/prometheus:v2.22.0
+    image: prom/prometheus:v2.30.3
+    ports:
+      - "9090:9090"
     volumes:
       - ./prometheus:/etc/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+
+  grafana:
+    image: grafana/grafana:latest
     ports:
-      - "9090:9090"
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana:/var/lib/grafana
+
+  mongodb:
+    container_name: mongodb
+    image: mongo:latest
+    ports:
+      - "${MONGODB_PORT}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+
+  mongo-express:
+    container_name: mongo-express
+    image: mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_MONGODB_PORT: ${MONGODB_PORT}
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_USERNAME}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_PASSWORD}
+
+volumes:
+  mongo_data:
+    driver: local
