@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/dalekurt/kratos-meter/server/models"
-	"github.com/dalekurt/kratos-meter/server/utils"
+	"github.com/dalekurt/kratos-meter/models"
+	"github.com/dalekurt/kratos-meter/utils"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.temporal.io/sdk/client"

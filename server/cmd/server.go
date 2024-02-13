@@ -1,20 +1,26 @@
-// server/cmd/server.go
 package main
 
 import (
-	"github.com/dalekurt/kratos-meter/server/api"
-	"github.com/dalekurt/kratos-meter/server/db"
-	"github.com/gin-gonic/gin"
-	"go.temporal.io/sdk/client"
+	"context"
 	"log"
+	"os"
+
+	"github.com/dalekurt/kratos-meter/api"
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.temporal.io/sdk/client"
 )
 
 func main() {
+	// Load environment variables
+
 	// Initialize MongoDB connection
-	mongoCollection, err := db.ConnectMongo("mongodb://localhost:27017", "kratosMeterDB", "jobs")
+	mongoClient, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(os.Getenv("MONGODB_HOST")))
 	if err != nil {
 		log.Fatalf("Failed to connect to MongoDB: %v", err)
 	}
+	mongoCollection := mongoClient.Database(os.Getenv("MONGODB_DATABASE")).Collection("jobs")
 
 	// Initialize Temporal client
 	temporalClient, err := client.NewClient(client.Options{})
