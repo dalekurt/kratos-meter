@@ -3,18 +3,30 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 )
 
-var MongoCollection *mongo.Collection
-
-func ConnectMongo(uri, dbName, collectionName string) {
+// ConnectMongo connects to MongoDB and ensures the database and collection exist.
+func ConnectMongo(uri, dbName, collectionName string) (*mongo.Collection, error) {
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(uri))
 	if err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
+		return nil, fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
 
-	MongoCollection = client.Database(dbName).Collection(collectionName)
+	// Ping the MongoDB server
+	if err := client.Ping(context.TODO(), nil); err != nil {
+		return nil, fmt.Errorf("failed to ping MongoDB: %w", err)
+	}
+
+	// Check for the specified database and collection
+	collection := client.Database(dbName).Collection(collectionName)
+
+	// TODO: Add logic here to check if the database and collection actually exist,
+	// and log messages or create them as needed. This step might involve running a
+	// query against the database or leveraging MongoDB commands to check existence.
+
+	return collection, nil
 }

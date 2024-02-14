@@ -2,43 +2,47 @@
 package workflows
 
 import (
-	"context"
-	"time"
-
+	"github.com/dalekurt/kratos-meter/server/shared"
 	"go.temporal.io/sdk/workflow"
+	"time"
 )
 
-// LoadTestWorkflow is the workflow definition for load testing.
-func LoadTestWorkflow(ctx workflow.Context, job JobDetails) (string, error) {
-	// Define workflow options
+// LoadTestWorkflow defines the workflow for load testing
+func LoadTestWorkflow(ctx workflow.Context, jobDetails shared.JobDetails) error {
 	ao := workflow.ActivityOptions{
-		StartToCloseTimeout: 10 * time.Minute,
+		StartToCloseTimeout: 10 * time.Minute, // Adjust based on expected activity duration
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
-	// Run the load test activity
-	var result string
-	err := workflow.ExecuteActivity(ctx, LoadTestActivity, job).Get(ctx, &result)
+	var repoPath string
+	err := workflow.ExecuteActivity(ctx, CloneRepoActivity, jobDetails).Get(ctx, &repoPath)
 	if err != nil {
-		// Handle activity failure
-		return "", err
+		return err
 	}
 
-	// Return the result of the load test
-	return result, nil
-}
+	var initResult string
+	err = workflow.ExecuteActivity(ctx, InitializeJobActivity, jobDetails, repoPath).Get(ctx, &initResult)
+	if err != nil {
+		return err
+	}
 
-// LoadTestActivity is an activity that performs the actual load test.
-func LoadTestActivity(ctx context.Context, job JobDetails) (string, error) {
-	// TODO: Perform the load test using the details in job
-	// This is where you'd integrate with your load testing tool/library
+	var testResult string
+	err = workflow.ExecuteActivity(ctx, ExecuteTestActivity, jobDetails, repoPath).Get(ctx, &testResult)
+	if err != nil {
+		return err
+	}
 
-	// For demonstration, just returning a success message
-	return "Load test completed successfully", nil
-}
+	var processResult string
+	err = workflow.ExecuteActivity(ctx, ProcessResultsActivity, testResult).Get(ctx, &processResult)
+	if err != nil {
+		return err
+	}
 
-// JobDetails struct to pass job-related data to the workflow and activity
-type JobDetails struct {
-	Name        string
-	Description string
+	var cleanupResult string
+	err = workflow.ExecuteActivity(ctx, CleanupActivity, repoPath).Get(ctx, &cleanupResult)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

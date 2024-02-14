@@ -1,5 +1,5 @@
 // server/go.mod
-module github.com/dalekurt/kratos-meter
+module github.com/dalekurt/kratos-meter/server
 
 go 1.21.7
 
@@ -38,6 +38,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

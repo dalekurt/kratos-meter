@@ -4,54 +4,59 @@ package workflows
 import (
 	"context"
 	"fmt"
+	"github.com/dalekurt/kratos-meter/server/shared"
+	"os"
 	"os/exec"
+	"path/filepath"
 )
 
-// InitializeJob prepares and validates the job configuration
-func InitializeJob(ctx context.Context, jobConfig string) (string, error) {
-	// Parse and validate the jobConfig
-	// Setup necessary resources or configurations for the test
-	// Return an initialization status or any important information
-	return "Initialization complete", nil
+func InitializeJobActivity(ctx context.Context, jobDetails shared.JobDetails, repoPath string) (string, error) {
+	if jobDetails.Filename == "" {
+		return "", fmt.Errorf("no test script filename provided")
+	}
+	testScriptPath := filepath.Join(repoPath, jobDetails.Filename)
+	if _, err := os.Stat(testScriptPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("test script %s does not exist", jobDetails.Filename)
+	}
+	return "Initialization complete. Test script: " + jobDetails.Filename, nil
 }
 
-// ExecuteTest runs the load test using K6
-func ExecuteTest(ctx context.Context, filename string) (string, error) {
-	// Execute the K6 test script using the testConfig
-	// You might use os/exec package to run K6 as an external command
-	// Collect and return the test execution status or result
+func CloneRepoActivity(ctx context.Context, jobDetails shared.JobDetails) (string, error) {
+	repoPath, err := os.MkdirTemp("", "repo-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp directory: %v", err)
+	}
 
-	// Example:
-	// cmd := exec.Command("k6", "run", "-e", testConfig)
-	// output, err := cmd.CombinedOutput()
-	// if err != nil {
-	//     return "", fmt.Errorf("failed to execute test: %v, output: %s", err, string(output))
-	// }
-	// Assuming testConfig is a path to the K6 test script or includes necessary K6 command line arguments
-	scriptPath := fmt.Sprintf("./scripts/%s", filename) // Construct the path to the script
+	gitCloneCmd := exec.Command("git", "clone", "-b", jobDetails.GitBranch, jobDetails.GitRepo, repoPath)
+	if output, err := gitCloneCmd.CombinedOutput(); err != nil {
+		os.RemoveAll(repoPath) // Clean up the directory on failure
+		return "", fmt.Errorf("failed to clone git repo: %v, output: %s", err, string(output))
+	}
 
-	cmd := exec.Command("k6", "run", scriptPath)
+	// Log the directory path where the repository is cloned
+	log.Printf("Repository cloned to: %s", repoPath)
 
-	output, err := cmd.CombinedOutput()
+	return repoPath, nil
+}
+
+func ExecuteTestActivity(ctx context.Context, jobDetails shared.JobDetails, repoPath string) (string, error) {
+	testScriptPath := filepath.Join(repoPath, jobDetails.Filename)
+	k6Cmd := exec.Command("k6", "run", testScriptPath)
+	output, err := k6Cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to execute test: %v, output: %s", err, string(output))
 	}
-
-	return fmt.Sprintf("Test execution complete, output: %s", string(output)), nil
+	return "Test execution complete. Output: " + string(output), nil
 }
 
-// ProcessResults collects, processes, and stores the test results
-func ProcessResults(ctx context.Context, testResults string) (string, error) {
-	// Parse the testResults
-	// Generate reports or summaries
-	// Store the results in a database or file system
-	// Return a processing status or any relevant information
-	return "Results processed", nil
+func ProcessResultsActivity(ctx context.Context, testResult string) (string, error) {
+	return "Results processed: " + testResult, nil
 }
 
-// Cleanup performs any necessary cleanup after the test is complete
-func Cleanup(ctx context.Context) (string, error) {
-	// Clean up any resources or temporary configurations
-	// Return a cleanup status or any relevant information
+func CleanupActivity(ctx context.Context, repoPath string) (string, error) {
+	err := os.RemoveAll(repoPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to clean up repo directory: %v", err)
+	}
 	return "Cleanup complete", nil
 }
