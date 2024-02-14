@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/dalekurt/kratos-meter/server/shared"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
