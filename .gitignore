@@ -1,0 +1,30 @@
+# Binary and object files
+*.o
+*.a
+*.so
+bin/
+*.exe
+*.test
+
+# Dependency directories (remove the vendor line if you're not using vendoring)
+vendor/
+
+# IDE and editor directories
+.idea/
+*.swp
+*.swo
+.vscode/
+*.vscode
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
