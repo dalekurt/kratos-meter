@@ -14,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.temporal.io/sdk/client"
 	"log"
+	"time"
 )
 
 // HandlerDependencies struct to hold dependencies for the handlers
@@ -33,6 +34,7 @@ func (hd *HandlerDependencies) CreateJob(c *gin.Context) {
 
 	job.ID = utils.GenerateUniqueID()
 	job.Status = "Pending"
+	job.CreatedAt = time.Now()
 
 	_, err := hd.MongoCollection.InsertOne(context.Background(), job)
 	if err != nil {
