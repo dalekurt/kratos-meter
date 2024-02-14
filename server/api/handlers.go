@@ -15,13 +15,14 @@ import (
 func CreateJob(mongoCollection *mongo.Collection, temporalClient client.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var job models.Job
+
 		if err := c.BindJSON(&job); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
 		// Generate unique ID for the job and set initial status
-		job.ID = utils.GenerateUniqueID() // Make sure to implement this function in the utils package
+		job.ID = utils.GenerateUniqueID() // TODO: Implement this function in the utils package
 		job.Status = "Pending"
 
 		// Insert job into MongoDB

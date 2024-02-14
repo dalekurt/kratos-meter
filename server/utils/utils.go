@@ -1,11 +1,9 @@
-// server/utils.go
-package server
+// server/utils/utils.go
+package utils
 
-import (
-	"github.com/google/uuid"
-)
+import "github.com/google/uuid"
 
-// generateUniqueID creates a new UUID and returns it as a string.
-func generateUniqueID() string {
+// GenerateUniqueID creates a new UUID and returns it as a string.
+func GenerateUniqueID() string {
 	return uuid.New().String()
 }
