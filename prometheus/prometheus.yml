@@ -26,3 +26,15 @@ scrape_configs:
     follow_redirects: true
     static_configs:
       - targets: ['prometheus:9090']
+
+remote_write:
+  - url: 'http://0.0.0.0:9090/api/v1/write'
+    # Optional: Configure these settings based on the requirements of your remote endpoint
+    # write_relabel_configs:
+    #   - source_labels: [ '__name__' ]
+    #     regex: '*'
+    #     action: 'keep'
+    # You can also specify other settings like basic_auth, bearer_token, etc., for authentication.
+    # basic_auth:
+    #   username: 'your_username'
+    #   password: 'your_password'
