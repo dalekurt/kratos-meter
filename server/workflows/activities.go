@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/dalekurt/kratos-meter/server/shared"
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -56,8 +57,19 @@ func CloneRepoActivity(ctx context.Context, jobDetails shared.JobDetails) (strin
 }
 
 func ExecuteTestActivity(ctx context.Context, mongoCollection *mongo.Collection, jobDetails shared.JobDetails, repoPath string) (string, error) {
+	if err := loadEnv(); err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+
 	testScriptPath := filepath.Join(repoPath, jobDetails.Filename)
-	k6Cmd := exec.Command("k6", "run", testScriptPath)
+
+	// Use environment variables for custom k6 binary path and Prometheus Remote Write URL
+	customK6BinaryPath := os.Getenv("CUSTOM_K6_BINARY_PATH")
+	prometheusRemoteWriteURL := os.Getenv("PROMETHEUS_REMOTE_WRITE_URL")
+
+	// Construct the k6 command with the Prometheus Remote Write extension flag
+	k6Cmd := exec.Command(customK6BinaryPath, "run", "--out", "xk6-prometheus-rw="+prometheusRemoteWriteURL, testScriptPath)
+
 	output, err := k6Cmd.CombinedOutput()
 	if err != nil {
 		// Update job status to "Failed"
@@ -86,4 +98,9 @@ func CleanupActivity(ctx context.Context, mongoCollection *mongo.Collection, rep
 		return "", fmt.Errorf("failed to clean up repo directory: %v", err)
 	}
 	return "Cleanup complete", nil
+}
+
+func loadEnv() error {
+	envPath := filepath.Join("..", ".env")
+	return godotenv.Load(envPath)
 }
