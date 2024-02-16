@@ -8,93 +8,117 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
+	"github.com/dalekurt/kratos-meter/server/shared"
+	"github.com/dalekurt/kratos-meter/server/workflows"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
-
-	"github.com/dalekurt/kratos-meter/server/workflows"
 )
 
 func main() {
-	// Construct the path to the .env file
-	envPath := filepath.Join("..", ".env")
-
-	// Load .env file
-	if err := godotenv.Load(envPath); err != nil {
-		log.Printf("Warning: Could not load .env file from %s: %v\n", envPath, err)
-	} else {
-		log.Println("Successfully loaded .env file.")
+	if err := loadEnv(); err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
 	}
 
-	// Get MongoDB URI from environment variables
-	mongoURI := os.Getenv("MONGODB_URI")
-	if mongoURI == "" {
-		log.Fatal("MONGODB_URI environment variable is not set.")
-	}
-
-	// Initialize MongoDB connection
-	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURI))
+	mongoClient, mongoCollection, err := connectToMongoDB()
 	if err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
+		log.Fatalf("Error connecting to MongoDB: %v", err)
 	}
 	defer mongoClient.Disconnect(context.Background())
 
-	// Check MongoDB connection
-	if err := mongoClient.Ping(context.Background(), nil); err != nil {
-		log.Fatalf("Failed to ping MongoDB: %v", err)
-	}
-	log.Println("MongoDB connection established.")
-
-	// Create a Temporal client.
 	temporalClient, err := client.NewClient(client.Options{})
 	if err != nil {
 		log.Fatalf("Failed to create Temporal client: %v", err)
 	}
 	defer temporalClient.Close()
 
-	// Define a task queue name.
 	const taskQueue = "kratosMeterTaskQueue"
-
-	// Create a new worker that listens on the specified task queue.
 	w := worker.New(temporalClient, taskQueue, worker.Options{})
 
-	// Register your workflows and activities with the worker.
-	w.RegisterWorkflow(workflows.LoadTestWorkflow)
-	w.RegisterActivity(workflows.InitializeJobActivity)
-	w.RegisterActivity(workflows.CloneRepoActivity)
-	w.RegisterActivity(workflows.ExecuteTestActivity)
-	w.RegisterActivity(workflows.ProcessResultsActivity)
-	w.RegisterActivity(workflows.CleanupActivity)
+	registerWorkflowsAndActivities(w, mongoCollection)
 
-	// Set up a channel to listen for OS signals for graceful shutdown.
+	startWorker(w)
+}
+
+func loadEnv() error {
+	envPath := filepath.Join("..", ".env")
+	return godotenv.Load(envPath)
+}
+
+func connectToMongoDB() (*mongo.Client, *mongo.Collection, error) {
+	mongoURI := os.Getenv("MONGODB_URI")
+	mongoDB := os.Getenv("MONGODB_DATABASE")
+	mongoCollectionName := os.Getenv("MONGODB_COLLECTION")
+
+	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := mongoClient.Ping(context.Background(), nil); err != nil {
+		return nil, nil, err
+	}
+
+	mongoCollection := mongoClient.Database(mongoDB).Collection(mongoCollectionName)
+	return mongoClient, mongoCollection, nil
+}
+
+func registerWorkflowsAndActivities(w worker.Worker, mongoCollection *mongo.Collection) {
+	w.RegisterWorkflow(workflows.LoadTestWorkflow)
+
+	w.RegisterActivityWithOptions(
+		func(ctx context.Context, jobDetails shared.JobDetails, repoPath string) (string, error) {
+			return workflows.InitializeJobActivity(ctx, mongoCollection, jobDetails, repoPath)
+		},
+		activity.RegisterOptions{Name: "InitializeJobActivity"},
+	)
+
+	w.RegisterActivityWithOptions(
+		func(ctx context.Context, jobDetails shared.JobDetails) (string, error) {
+			return workflows.CloneRepoActivity(ctx, jobDetails)
+		},
+		activity.RegisterOptions{Name: "CloneRepoActivity"},
+	)
+
+	w.RegisterActivityWithOptions(
+		func(ctx context.Context, jobDetails shared.JobDetails, repoPath string) (string, error) {
+			return workflows.ExecuteTestActivity(ctx, mongoCollection, jobDetails, repoPath)
+		},
+		activity.RegisterOptions{Name: "ExecuteTestActivity"},
+	)
+
+	w.RegisterActivityWithOptions(
+		func(ctx context.Context, testResult string) (string, error) {
+			return workflows.ProcessResultsActivity(ctx, mongoCollection, testResult)
+		},
+		activity.RegisterOptions{Name: "ProcessResultsActivity"},
+	)
+
+	w.RegisterActivityWithOptions(
+		func(ctx context.Context, repoPath string) (string, error) {
+			return workflows.CleanupActivity(ctx, mongoCollection, repoPath)
+		},
+		activity.RegisterOptions{Name: "CleanupActivity"},
+	)
+}
+
+func startWorker(w worker.Worker) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start the worker in a goroutine.
 	go func() {
 		if err := w.Run(worker.InterruptCh()); err != nil {
 			log.Fatalf("Failed to start worker: %v", err)
 		}
 	}()
 
-	// Wait for shutdown signals.
 	sig := <-sigs
 	log.Printf("Received signal: %v, initiating shutdown.", sig)
 
-	// Initiate a graceful shutdown.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
 	w.Stop()
-
-	// Close the MongoDB connection.
-	if err := mongoClient.Disconnect(ctx); err != nil {
-		log.Printf("Failed to disconnect MongoDB: %v", err)
-	}
-
 	log.Println("Worker shutdown gracefully.")
 }
