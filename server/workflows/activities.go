@@ -67,8 +67,8 @@ func ExecuteTestActivity(ctx context.Context, mongoCollection *mongo.Collection,
 	customK6BinaryPath := os.Getenv("CUSTOM_K6_BINARY_PATH")
 	prometheusRemoteWriteURL := os.Getenv("PROMETHEUS_REMOTE_WRITE_URL")
 
-	// Construct the k6 command with the Prometheus Remote Write extension flag
-	k6Cmd := exec.Command(customK6BinaryPath, "run", "--out", "xk6-prometheus-rw="+prometheusRemoteWriteURL, testScriptPath)
+	// Construct the k6 command with the Prometheus Remote Write extension flag and the testid tag
+	k6Cmd := exec.Command(customK6BinaryPath, "run", "--out", "xk6-prometheus-rw="+prometheusRemoteWriteURL, "--tag", "testid="+jobDetails.ID, testScriptPath)
 
 	output, err := k6Cmd.CombinedOutput()
 	if err != nil {

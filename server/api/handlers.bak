@@ -1,0 +1,342 @@
+// server/api/handlers.go
+package api
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/dalekurt/kratos-meter/server/models"
+	"github.com/dalekurt/kratos-meter/server/shared"
+	"github.com/dalekurt/kratos-meter/server/utils"
+	"github.com/dalekurt/kratos-meter/server/workflows"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.temporal.io/sdk/client"
+	"log"
+	"time"
+)
+
+// HandlerDependencies struct to hold dependencies for the handlers
+type HandlerDependencies struct {
+	TemporalClient     client.Client
+	JobsCollection     *mongo.Collection
+	ProjectsCollection *mongo.Collection
+	JobLogsCollection  *mongo.Collection
+}
+
+// CreateJob creates a new job and saves it to MongoDB
+func (hd *HandlerDependencies) CreateJob(c *gin.Context) {
+	var job models.Job
+
+	if err := c.BindJSON(&job); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if the provided ProjectID exists
+	var project models.Project
+	if err := hd.ProjectsCollection.FindOne(context.Background(), bson.M{"projectId": job.ProjectID}).Decode(&project); err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+			return
+		} else {
+			log.Printf("Failed to retrieve project from MongoDB: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve project"})
+			return
+		}
+	}
+
+	job.ID = utils.GenerateUniqueID()
+	job.CreatedAt = time.Now()
+
+	_, err := hd.JobsCollection.InsertOne(context.Background(), job)
+	if err != nil {
+		log.Printf("Failed to insert job into MongoDB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create job in the database"})
+		return
+	}
+
+	// Respond with the created job details
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Job created successfully",
+		"jobID":   job.ID,
+	})
+}
+
+// GetJobs returns all jobs from the database
+func (hd *HandlerDependencies) GetJobs(c *gin.Context) {
+	var jobs []models.Job
+	cursor, err := hd.JobsCollection.Find(context.Background(), bson.M{})
+	if err != nil {
+		log.Printf("Failed to retrieve jobs from MongoDB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve jobs"})
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	for cursor.Next(context.Background()) {
+		var job models.Job
+		if err := cursor.Decode(&job); err != nil {
+			log.Printf("Failed to decode job from MongoDB: %v", err)
+			continue
+		}
+		jobs = append(jobs, job)
+	}
+
+	if err := cursor.Err(); err != nil {
+		log.Printf("Cursor error when retrieving jobs from MongoDB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve jobs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, jobs)
+}
+
+// GetJobByID returns a specific job by its ID from the database
+func (hd *HandlerDependencies) GetJobByID(c *gin.Context) {
+	jobID := c.Param("id")
+
+	var job models.Job
+	if err := hd.JobsCollection.FindOne(context.Background(), bson.M{"id": jobID}).Decode(&job); err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
+		} else {
+			log.Printf("Failed to retrieve job from MongoDB: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve job"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, job)
+}
+
+// GetProjects returns all projects from the database
+func (hd *HandlerDependencies) GetProjects(c *gin.Context) {
+	var projects []models.Project
+	cursor, err := hd.ProjectsCollection.Find(context.Background(), bson.M{})
+	if err != nil {
+		log.Printf("Failed to retrieve projects from MongoDB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve projects"})
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	for cursor.Next(context.Background()) {
+		var project models.Project
+		if err := cursor.Decode(&project); err != nil {
+			log.Printf("Failed to decode project from MongoDB: %v", err)
+			continue
+		}
+		projects = append(projects, project)
+	}
+
+	if err := cursor.Err(); err != nil {
+		log.Printf("Cursor error when retrieving projects from MongoDB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve projects"})
+		return
+	}
+
+	c.JSON(http.StatusOK, projects)
+}
+
+// CreateProject creates a new project and saves it to MongoDB
+func (hd *HandlerDependencies) CreateProject(c *gin.Context) {
+	var project models.Project
+
+	// Bind the incoming JSON payload to the Project struct
+	if err := c.BindJSON(&project); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Generate a new UUID for the project and convert it to a string
+	project.ProjectID = uuid.New().String()
+
+	// Insert the new project into the MongoDB collection
+	_, err := hd.ProjectsCollection.InsertOne(context.Background(), project)
+	if err != nil {
+		log.Printf("Failed to insert project into MongoDB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create project in the database"})
+		return
+	}
+
+	// Respond with the created project details
+	c.JSON(http.StatusCreated, project)
+}
+
+// GetProjectByID - Retrieve a project by its ID
+func (hd *HandlerDependencies) GetProjectByID(c *gin.Context) {
+	projectID := c.Param("id")
+
+	var project models.Project
+	if err := hd.ProjectsCollection.FindOne(context.Background(), bson.M{"projectId": projectID}).Decode(&project); err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+		} else {
+			log.Printf("Failed to retrieve project from MongoDB: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve project"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, project)
+}
+
+// UpdateProject - Update a project's details
+func (hd *HandlerDependencies) UpdateProject(c *gin.Context) {
+	projectID := c.Param("id")
+	var project models.Project
+
+	if err := c.BindJSON(&project); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := hd.ProjectsCollection.UpdateOne(context.Background(), bson.M{"projectId": projectID}, bson.M{"$set": project})
+	if err != nil {
+		log.Printf("Failed to update project in MongoDB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update project"})
+		return
+	}
+
+	if result.MatchedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Project updated successfully"})
+}
+
+// DeleteProject - Delete a project by its ID
+func (hd *HandlerDependencies) DeleteProject(c *gin.Context) {
+	projectID := c.Param("id")
+
+	result, err := hd.ProjectsCollection.DeleteOne(context.Background(), bson.M{"projectId": projectID})
+	if err != nil {
+		log.Printf("Failed to delete project from MongoDB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete project"})
+		return
+	}
+
+	if result.DeletedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Project deleted successfully"})
+}
+
+// StartJob starts the workflow for a given job ID
+func (hd *HandlerDependencies) StartJob(c *gin.Context) {
+	jobID := c.Param("jobid")
+
+	var job models.Job
+	if err := hd.JobsCollection.FindOne(context.Background(), bson.M{"id": jobID}).Decode(&job); err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
+			return
+		} else {
+			log.Printf("Failed to retrieve job from MongoDB: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve job"})
+			return
+		}
+	}
+
+	// Log that the job is about to start
+	if err := hd.UpdateJobStatusAndLog(job.ID, "Starting", "Initiating job execution workflow"); err != nil {
+		log.Printf("Failed to log job start: %v", err)
+		// Decide how you want to handle logging errors, you might not want to return here
+	}
+
+	jobDetails := shared.JobDetails{
+		ID:          job.ID,
+		Name:        job.Name,
+		Description: job.Description,
+		Filename:    job.Filename,
+		GitRepo:     job.GitRepo,
+		GitBranch:   job.GitBranch,
+	}
+
+	we, err := hd.TemporalClient.ExecuteWorkflow(context.Background(), client.StartWorkflowOptions{
+		ID:        "loadTestJob_" + job.ID,
+		TaskQueue: "kratosMeterTaskQueue",
+	}, workflows.LoadTestWorkflow, jobDetails)
+	if err != nil {
+		log.Printf("Failed to start load test workflow: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start load test workflow"})
+		return
+	}
+
+	// Log that the job has successfully started
+	if err := hd.UpdateJobStatusAndLog(job.ID, "Started", "Job execution workflow started successfully"); err != nil {
+		log.Printf("Failed to log job start: %v", err)
+		// Decide how you want to handle logging errors, you might not want to return here
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Workflow started for job",
+		"jobID":      job.ID,
+		"workflowID": we.GetID(),
+		"runID":      we.GetRunID(),
+	})
+}
+
+func (hd *HandlerDependencies) UpdateJobStatusAndLog(jobID string, status string, message string) error {
+	ctx := context.Background()
+	// Update the job status in the JobsCollection
+	_, err := hd.JobsCollection.UpdateOne(ctx, bson.M{"id": jobID}, bson.M{"$set": bson.M{"status": status}})
+	if err != nil {
+		log.Printf("Failed to update job status in MongoDB: %v", err)
+		return err
+	}
+
+	// Create a new job log entry
+	jobLog := models.JobLog{
+		JobID:     jobID,
+		Status:    status,
+		Timestamp: time.Now(),
+		Message:   message,
+	}
+
+	// Insert the job log entry into the JobLogsCollection
+	_, err = hd.JobLogsCollection.InsertOne(ctx, jobLog)
+	if err != nil {
+		log.Printf("Failed to insert job log into MongoDB: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// GetJobLogs retrieves and returns the logs for a given job ID
+func (hd *HandlerDependencies) GetJobLogs(c *gin.Context) {
+	jobID := c.Param("jobid")
+
+	var jobLogs []models.JobLog
+	cursor, err := hd.JobLogsCollection.Find(context.Background(), bson.M{"jobID": jobID})
+	if err != nil {
+		log.Printf("Failed to retrieve job logs from MongoDB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve job logs"})
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	for cursor.Next(context.Background()) {
+		var jobLog models.JobLog
+		if err := cursor.Decode(&jobLog); err != nil {
+			log.Printf("Failed to decode job log from MongoDB: %v", err)
+			continue
+		}
+		jobLogs = append(jobLogs, jobLog)
+	}
+
+	if err := cursor.Err(); err != nil {
+		log.Printf("Cursor error when retrieving job logs from MongoDB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve job logs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, jobLogs)
+}
