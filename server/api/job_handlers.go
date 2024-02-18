@@ -161,3 +161,40 @@ func (hd *HandlerDependencies) UpdateJobStatusAndLog(jobID, status, message stri
 
 	return nil
 }
+
+// GetJobsByProjectID handles the request to get jobs by project ID
+func (hd *HandlerDependencies) GetJobsByProjectID(c *gin.Context) {
+	projectID := c.Param("id")
+	log.Printf("Fetching jobs for project ID: %s", projectID)
+
+	// Use projectID to filter jobs
+	filter := bson.M{"projectId": projectID}
+	var jobs []models.Job
+
+	cursor, err := hd.JobsCollection.Find(context.Background(), filter)
+	if err != nil {
+		log.Printf("Error fetching jobs: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve jobs for the project"})
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	for cursor.Next(context.Background()) {
+		var job models.Job
+		if err := cursor.Decode(&job); err != nil {
+			log.Printf("Error decoding job data: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode job data"})
+			return
+		}
+		jobs = append(jobs, job)
+	}
+
+	if err := cursor.Err(); err != nil {
+		log.Printf("Cursor error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cursor error while retrieving jobs"})
+		return
+	}
+
+	log.Printf("Jobs found: %v", jobs)
+	c.JSON(http.StatusOK, jobs)
+}

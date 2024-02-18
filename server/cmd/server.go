@@ -104,10 +104,13 @@ func main() {
 	router.GET("/projects/:id", deps.GetProjectByID)
 	router.PUT("/projects/:id", deps.UpdateProject)
 	router.DELETE("/projects/:id", deps.DeleteProject)
+	router.GET("/projects/:id/jobs", deps.GetJobsByProjectID)
+
 	// Routers for jobs endpoints
 	router.POST("/jobs", deps.CreateJob)
 	router.GET("/jobs", deps.GetJobs)
 	router.GET("/jobs/:id", deps.GetJobByID)
+
 	// Routers for logs endpoint
 	router.GET("/logs/:jobid", deps.GetJobLogs)
 	// Routers for start endpoint
