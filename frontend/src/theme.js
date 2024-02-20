@@ -1,40 +1,61 @@
 // src/theme.js
 import { createTheme } from '@mui/material/styles';
 
-// Light theme inspired by mui.com
-export const lightTheme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#007FFF', // Example primary color used on mui.com
-    },
-    background: {
-      default: '#fff',
-      paper: '#fff',
-    },
-    text: {
-      primary: '#0a1929',
-      secondary: '#5a6978',
-    },
+// Light theme colors
+const lightPalette = {
+  primary: {
+    main: '#6c35de',
+    light: '#a364ff',
+    dark: '#241b35',
+    contrastText: '#ffffff',
   },
-  // Additional customization...
+  secondary: {
+    main: '#cb80ff',
+    dark: '#373737',
+    contrastText: '#e0e0e0',
+  },
+  background: {
+    default: '#bg-100',
+    paper: '#bg-200',
+  },
+  text: {
+    primary: '#text-100',
+    secondary: '#text-200',
+  },
+  // Add other color settings if needed
+};
+
+// Dark theme colors
+const darkPalette = {
+  primary: {
+    main: '#333333',
+    light: '#5c5c5c',
+    dark: '#b9b9b9',
+    contrastText: '#ffffff',
+  },
+  secondary: {
+    main: '#666666',
+    light: '#f7f7f7',
+    dark: '#a3a3a3',
+    contrastText: '#e0e0e0',
+  },
+  background: {
+    default: '#1A1A1A',
+    paper: '#292929',
+  },
+  text: {
+    primary: '#ffffff',
+    secondary: '#e0e0e0',
+  },
+  // Add other color settings if needed
+};
+
+export const lightTheme = createTheme({
+  palette: lightPalette,
+  // Add other customizations like typography, etc.
 });
 
-// Dark theme inspired by mui.com
 export const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-    primary: {
-      main: '#007FFF', // You can adjust the primary color for the dark theme if needed
-    },
-    background: {
-      default: '#121212', // Dark background color
-      paper: '#1e1e1e', // Darker shade for paper backgrounds
-    },
-    text: {
-      primary: '#fff',
-      secondary: '#b0bec5',
-    },
-  },
-  // Additional customization...
+  palette: darkPalette,
+  // Add other customizations like typography, etc.
 });
