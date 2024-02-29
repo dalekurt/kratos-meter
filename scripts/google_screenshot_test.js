@@ -23,7 +23,7 @@ export default async function () {
     // Generate a timestamp string in the format "YYYYMMDD_HHMMSS"
     const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, -4);
     // Prefix the filename with "screenshot" and append the timestamp
-    const screenshotFilename = `screenshot_${timestamp}.png`;
+    const screenshotFilename = `/tmp/screenshot_${timestamp}.png`;
 
     try {
         await page.goto('https://google.com/');
