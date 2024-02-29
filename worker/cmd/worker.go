@@ -24,6 +24,9 @@ func main() {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
+	// Initialize the MinIO client
+	shared.InitMinioClient()
+
 	mongoClient, mongoCollection, err := connectToMongoDB()
 	if err != nil {
 		log.Fatalf("Error connecting to MongoDB: %v", err)
