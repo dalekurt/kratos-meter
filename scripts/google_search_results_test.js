@@ -13,32 +13,33 @@ export const options = {
             },
         },
     },
-    thresholds: {
-        checks: ['rate==1.0'],
-    },
 };
 
 export default async function () {
     const page = browser.newPage();
-    const jobID = __ENV.JOB_ID;
+    const jobID = __ENV.JOB_ID; // Ensure JOB_ID is passed as an environment variable
     const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, -4);
 
-    try {
-        await page.goto('https://google.com/');
-        // Use the title attribute to accurately identify the search input
-        const searchInput = page.locator('input[title="Search"]');
-        await searchInput.fill('Best french restaurant for brunch in NYC');
-        // Take a screenshot after filling the search input
-        await page.screenshot({ path: `/tmp/screenshot_${jobID}_${timestamp}_before_search.png` });
-        await searchInput.press('Enter'); // Simulate pressing Enter to submit the search
-        await page.waitForLoadState('networkidle');
-        // Take a screenshot after the search results have loaded
-        await page.screenshot({ path: `/tmp/screenshot_${jobID}_${timestamp}_after_search.png` });
-        // Optionally, take additional screenshots if needed for further interaction stages
-        console.log(`Screenshots saved`);
-    } catch (error) {
-        console.error(`Error: ${error}`);
-    } finally {
-        await page.close();
-    }
+    await page.goto('https://google.com/');
+    await page.waitForSelector('textarea[title="Search"]');
+
+    // Click the search box before typing
+    await page.click('textarea[title="Search"]');
+
+    // Use Type instead of Fill to simulate keyboard input
+    await page.type('textarea[title="Search"]', 'Best french restaurant for brunch in NYC');
+    
+    // Take a screenshot after typing the search query
+    await page.screenshot({ path: `/tmp/screenshot_${jobID}_query_${timestamp}.png` });
+    
+    // Press Enter to submit the form and wait for navigation
+    await page.press('textarea[title="Search"]', 'Enter');
+    await page.waitForNavigation({ waitUntil: 'networkidle' });
+    
+    // Take a screenshot of the search results
+    await page.screenshot({ path: `/tmp/screenshot_${jobID}_results_${timestamp}.png` });
+
+    console.log(`Screenshots saved with Job ID: ${jobID} and Timestamp: ${timestamp}`);
+    
+    await page.close();
 }
