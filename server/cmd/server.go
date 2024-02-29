@@ -89,7 +89,7 @@ func main() {
 
 	// Configure CORS to allow your frontend application
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5001"}, // TODO: Use environment variable for AllowOrigins
+		AllowOrigins:     []string{"*", "http://localhost:5001"}, // TODO: Use environment variable for AllowOrigins
 		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -119,7 +119,7 @@ func main() {
 	// Server setup
 	port := os.Getenv("SERVER_PORT")
 	if port == "" {
-		port = "5000" // Default port if not specified in .env
+		port = "5000"
 	}
 	srv := &http.Server{
 		Addr:    ":" + port,

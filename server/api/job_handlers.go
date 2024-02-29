@@ -109,7 +109,8 @@ func (hd *HandlerDependencies) StartJob(c *gin.Context) {
 		Description: job.Description,
 		Filename:    job.Filename,
 		GitRepo:     job.GitRepo,
-		GitBranch:   job.GitBranch,
+		// ScreenshotEnabled: job.ScreenshotEnabled,
+		GitBranch: job.GitBranch,
 	}
 
 	// Use TemporalClientWrapper to execute the workflow
