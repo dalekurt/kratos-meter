@@ -25,12 +25,16 @@ export default async function () {
 
     try {
         await page.goto('https://google.com/');
-        const searchInput = await page.getByLabel('Search');
+        // Use the title attribute to accurately identify the search input
+        const searchInput = page.locator('input[title="Search"]');
         await searchInput.fill('Best french restaurant for brunch in NYC');
-        await page.screenshot({ path: `/tmp/screenshot_${jobID}_${timestamp}.png` });
-        await page.getByRole('button', { name: 'Search' }).click();
+        // Take a screenshot after filling the search input
+        await page.screenshot({ path: `/tmp/screenshot_${jobID}_${timestamp}_before_search.png` });
+        await searchInput.press('Enter'); // Simulate pressing Enter to submit the search
         await page.waitForLoadState('networkidle');
-        await page.screenshot({ path: `/tmp/screenshot_${jobID}_${timestamp}.png` });
+        // Take a screenshot after the search results have loaded
+        await page.screenshot({ path: `/tmp/screenshot_${jobID}_${timestamp}_after_search.png` });
+        // Optionally, take additional screenshots if needed for further interaction stages
         console.log(`Screenshots saved`);
     } catch (error) {
         console.error(`Error: ${error}`);
