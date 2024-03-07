@@ -1,0 +1,24 @@
+---
+// src/pages/dashboard/index.astro
+import DashboardLayout from '@/layouts/dashboard-layout.astro';
+// Import any other components you'll use in the dashboard.
+// Import data-fetching utilities if needed.
+
+// Define any data or props you want to pass to the layout or components.
+const pageTitle = 'Dashboard';
+const pageDescription = 'Overview of your application statistics and metrics.';
+
+// If you have dynamic data to fetch, do it here.
+// const dashboardData = await someDataFetchingFunction();
+---
+
+<DashboardLayout title={pageTitle} description={pageDescription}>
+  
+  <section class="space-y-6 pb-12 pt-16 lg:py-28">
+    <div
+      class="container flex max-w-[64rem] flex-col items-center gap-5 text-center"
+    >
+      <h1 class="text-2xl font-bold mb-4">Welcome to the Dashboard</h1>
+    </div>
+  </section>
+</DashboardLayout>
