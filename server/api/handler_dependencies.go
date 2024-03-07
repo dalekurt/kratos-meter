@@ -3,6 +3,7 @@ package api
 
 import (
 	"github.com/dalekurt/kratos-meter/server/utils"
+	"github.com/hashicorp/vault/api"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.temporal.io/sdk/client"
 )
@@ -14,4 +15,5 @@ type HandlerDependencies struct {
 	JobsCollection        *mongo.Collection
 	ProjectsCollection    *mongo.Collection
 	JobLogsCollection     *mongo.Collection
+	VaultClient           *api.Client
 }

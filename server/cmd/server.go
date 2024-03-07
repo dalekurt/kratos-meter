@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"github.com/dalekurt/kratos-meter/server/api"
+	"github.com/dalekurt/kratos-meter/server/shared"
 	"github.com/dalekurt/kratos-meter/server/utils"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,9 @@ func main() {
 	} else {
 		log.Println("Successfully loaded .env file.")
 	}
+
+	// Initialize Vault client
+	shared.InitVaultClient()
 
 	// Get MongoDB URI from environment variables
 	mongoURI := os.Getenv("MONGODB_URI")
@@ -82,6 +86,7 @@ func main() {
 		JobsCollection:        jobsCollection,
 		ProjectsCollection:    projectsCollection,
 		JobLogsCollection:     jobLogsCollection,
+		VaultClient:           shared.VaultClient,
 	}
 
 	// Initialize Gin router

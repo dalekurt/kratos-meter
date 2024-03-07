@@ -103,19 +103,35 @@ func (hd *HandlerDependencies) StartJob(c *gin.Context) {
 		return
 	}
 
+	// Fetch and set environment variables, including secrets from Vault
+	envVars := make(map[string]string)
+	for _, envVar := range job.EnvironmentVariables {
+		if envVar.IsSecret && envVar.SecretPath != "" {
+			// Fetch secret value from Vault
+			secretValue, err := shared.ReadSecret(envVar.SecretPath) // Adjusted call
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch secret from Vault"})
+				return
+			}
+			envVars[envVar.Key] = secretValue
+		} else {
+			// Plain text environment variable
+			envVars[envVar.Key] = envVar.Value
+		}
+	}
+
 	jobDetails := shared.JobDetails{
-		ID:          job.ID,
-		Name:        job.Name,
-		Description: job.Description,
-		Filename:    job.Filename,
-		GitRepo:     job.GitRepo,
-		// ScreenshotEnabled: job.ScreenshotEnabled,
-		GitBranch: job.GitBranch,
+		ID:           job.ID,
+		Name:         job.Name,
+		Description:  job.Description,
+		Filename:     job.Filename,
+		GitRepo:      job.GitRepo,
+		GitBranch:    job.GitBranch,
+		EnvVariables: envVars, // Pass environment variables to the workflow
 	}
 
 	// Use TemporalClientWrapper to execute the workflow
 	we, err := hd.TemporalClientWrapper.TemporalClient.ExecuteWorkflow(context.Background(), client.StartWorkflowOptions{
-		// ID:        "loadTestJob_" + job.ID,
 		ID:        job.ID,
 		TaskQueue: "kratosMeterTaskQueue",
 	}, workflows.LoadTestWorkflow, jobDetails)
@@ -124,15 +140,7 @@ func (hd *HandlerDependencies) StartJob(c *gin.Context) {
 		return
 	}
 
-	// Asynchronously call UpdateWorkflowStatus to listen for workflow status updates
-	go hd.TemporalClientWrapper.UpdateWorkflowStatus(we.GetID())
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":    "Workflow started for job",
-		"jobID":      job.ID,
-		"workflowID": we.GetID(),
-		"runID":      we.GetRunID(),
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "Job started successfully", "WorkflowID": we.GetID(), "RunID": we.GetRunID()})
 }
 
 // UpdateJobStatusAndLog updates the status of a job and logs the change in the JobLogsCollection

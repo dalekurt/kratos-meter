@@ -4,6 +4,7 @@ package api
 import (
 	"context"
 	"github.com/dalekurt/kratos-meter/server/models"
+	"github.com/dalekurt/kratos-meter/server/shared"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -22,6 +23,19 @@ func (hd *HandlerDependencies) CreateProject(c *gin.Context) {
 	}
 
 	project.ProjectID = uuid.New().String()
+
+	// Handle environment variables
+	for i, envVar := range project.EnvironmentVariables {
+		if envVar.IsSecret {
+			secretPath, err := shared.WriteSecret(project.ProjectID, envVar.Key, envVar.Value) // Adjusted call
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store secret in Vault"})
+				return
+			}
+			project.EnvironmentVariables[i].Value = "" // Don't store the secret value in MongoDB
+			project.EnvironmentVariables[i].SecretPath = secretPath
+		}
+	}
 
 	if _, err := hd.ProjectsCollection.InsertOne(context.Background(), project); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create project in the database"})
@@ -74,17 +88,49 @@ func (hd *HandlerDependencies) GetProjectByID(c *gin.Context) {
 	c.JSON(http.StatusOK, project)
 }
 
-// UpdateProject updates a project's details
+// UpdateProject updates a project's details including environment variables and secrets
 func (hd *HandlerDependencies) UpdateProject(c *gin.Context) {
 	projectID := c.Param("id")
-	var project models.Project
+	var projectUpdate models.Project
 
-	if err := c.BindJSON(&project); err != nil {
+	if err := c.BindJSON(&projectUpdate); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	result, err := hd.ProjectsCollection.UpdateOne(context.Background(), bson.M{"projectId": projectID}, bson.M{"$set": project})
+	// Handle environment variables for secrets and plain text
+	var updatedEnvVars []models.EnvironmentVariable
+	for _, envVar := range projectUpdate.EnvironmentVariables {
+		if envVar.IsSecret && envVar.Value != "" {
+			// Write or update the secret in Vault and clear the value in the struct to not store it in MongoDB
+			secretPath, err := shared.WriteSecret(projectID, envVar.Key, envVar.Value)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store or update secret in Vault"})
+				return
+			}
+			updatedEnvVars = append(updatedEnvVars, models.EnvironmentVariable{
+				Key:        envVar.Key,
+				IsSecret:   true,
+				SecretPath: secretPath,
+			})
+		} else if !envVar.IsSecret {
+			// For plaintext environment variables, add them directly
+			updatedEnvVars = append(updatedEnvVars, envVar)
+		}
+	}
+
+	// Prepare the update document
+	update := bson.M{
+		"$set": bson.M{
+			"projectName":          projectUpdate.ProjectName,
+			"maxVUPerTest":         projectUpdate.MaxVUPerTest,
+			"maxDurationPerTest":   projectUpdate.MaxDurationPerTest,
+			"environmentVariables": updatedEnvVars,
+		},
+	}
+
+	// Perform the update operation
+	result, err := hd.ProjectsCollection.UpdateOne(context.Background(), bson.M{"projectId": projectID}, update)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update project"})
 		return
