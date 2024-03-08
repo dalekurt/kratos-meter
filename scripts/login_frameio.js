@@ -23,7 +23,7 @@ export default async function () {
     const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, -4);
 
     // Increased timeout for page navigation
-    await page.goto('https://app.frame.io/login', { timeout: 60000 });
+    await page.goto('https://accounts.frame.io/welcome', { timeout: 60000 });
     await page.waitForSelector('input[name="email"]', { timeout: 60000 });
     
     // Take a screenshot of the login page

@@ -213,39 +213,36 @@ func UploadScreenshots(ctx context.Context, jobID string) error {
 		return fmt.Errorf("MINIO_BUCKET_NAME environment variable not set")
 	}
 
-	// Find all screenshot files matching the pattern.
 	pattern := fmt.Sprintf("/tmp/screenshot_%s_*.png", jobID)
 	files, err := filepath.Glob(pattern)
 	if err != nil {
-		log.Printf("Failed to search for screenshot files: %v", err)
+		log.Printf("Error searching for screenshot files: %v", err)
 		return err
 	}
 
 	if len(files) == 0 {
 		log.Println("No screenshot files found matching the pattern:", pattern)
-		return nil // Or return an error if no screenshots is considered a failure state
+		return nil
 	}
 
 	for _, file := range files {
 		fileName := filepath.Base(file)
 		objectName := fmt.Sprintf("%s/%s", jobID, fileName)
 
-		// Open the screenshot file for reading.
 		fileReader, err := os.Open(file)
 		if err != nil {
-			log.Printf("Failed to open screenshot file: %v", err)
-			continue // Skip to the next file.
+			log.Printf("Error opening screenshot file %s: %v", file, err)
+			continue
 		}
 		defer fileReader.Close()
 
-		// Upload the screenshot file to Minio.
 		_, err = shared.MinioClient.PutObject(ctx, bucketName, objectName, fileReader, -1, minio.PutObjectOptions{ContentType: "image/png"})
 		if err != nil {
-			log.Printf("Failed to upload screenshot to Minio: %v", err)
-			continue // Skip to the next file.
+			log.Printf("Error uploading screenshot %s to MinIO: %v", objectName, err)
+			continue
 		}
 
-		log.Printf("Successfully uploaded screenshot: %s to Minio bucket: %s", objectName, bucketName)
+		log.Printf("Successfully uploaded screenshot: %s to MinIO bucket: %s", objectName, bucketName)
 	}
 
 	return nil
