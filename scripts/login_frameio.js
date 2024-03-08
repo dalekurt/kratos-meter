@@ -22,8 +22,9 @@ export default async function () {
     const jobID = __ENV.JOB_ID; // Ensure JOB_ID is passed as an environment variable
     const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, -4);
 
-    await page.goto('https://app.frame.io/login');
-    await page.waitForSelector('input[name="email"]');
+    // Increased timeout for page navigation
+    await page.goto('https://app.frame.io/login', { timeout: 60000 });
+    await page.waitForSelector('input[name="email"]', { timeout: 60000 });
     
     // Take a screenshot of the login page
     await page.screenshot({ path: `/tmp/screenshot_${jobID}_loginPage_${timestamp}.png` });
@@ -34,7 +35,7 @@ export default async function () {
     await page.click('button[type="submit"]'); // Adjust the selector to match the login button
 
     // Wait for navigation to the dashboard or subsequent page
-    await page.waitForNavigation({ waitUntil: 'networkidle' });
+    await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 60000 });
 
     // Take a screenshot after successful login
     await page.screenshot({ path: `/tmp/screenshot_${jobID}_afterLogin_${timestamp}.png` });
