@@ -103,16 +103,37 @@ func ExecuteTestActivity(ctx context.Context, mongoCollection *mongo.Collection,
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
+	// Fetch and set secrets as environment variables
+	secrets, err := fetchSecrets(ctx, jobDetails)
+	if err != nil {
+		log.Printf("Failed to fetch secrets: %v", err)
+		return "", err
+	}
+	for key, value := range secrets {
+		os.Setenv(key, value)
+		defer os.Unsetenv(key) // Clean up after execution to ensure security
+	}
+
+	// Prepare environment variables for the k6 process
+	envVars := []string{fmt.Sprintf("JOB_ID=%s", jobDetails.ID)} // Initialize with JOB_ID
+	for key, value := range secrets {
+		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+	}
+
 	testScriptPath := filepath.Join(repoPath, jobDetails.Filename)
 	customK6BinaryPath := os.Getenv("CUSTOM_K6_BINARY_PATH")
 	prometheusRemoteWriteURL := os.Getenv("PROMETHEUS_REMOTE_WRITE_URL")
 
-	// Execute the k6 test
-	// k6Cmd := exec.Command(customK6BinaryPath, "run", "--out", "xk6-prometheus-rw="+prometheusRemoteWriteURL, "--tag", "testid="+jobDetails.ID, testScriptPath)
-	k6Cmd := exec.Command(customK6BinaryPath, "run",
-		"-e", fmt.Sprintf("JOB_ID=%s", jobDetails.ID),
-		"--out", "xk6-prometheus-rw="+prometheusRemoteWriteURL,
-		"--tag", "testid="+jobDetails.ID, testScriptPath)
+	// Execute the k6 test with all required environment variables
+	k6CmdArgs := []string{
+		"run",
+		"--out", "xk6-prometheus-rw=" + prometheusRemoteWriteURL,
+		"--tag", "testid=" + jobDetails.ID,
+		testScriptPath,
+	}
+
+	k6Cmd := exec.Command(customK6BinaryPath, k6CmdArgs...)
+	k6Cmd.Env = append(os.Environ(), envVars...) // Include process environment variables along with dynamic ones
 	output, err := k6Cmd.CombinedOutput()
 	if err != nil {
 		if updateErr := UpdateJobStatus(ctx, mongoCollection, jobDetails.ID, "Failed"); updateErr != nil {
@@ -150,6 +171,20 @@ func ExecuteTestActivity(ctx context.Context, mongoCollection *mongo.Collection,
 	}
 
 	return "Test execution complete. Output: " + string(output), nil
+}
+
+// Fetch secrets from Vault using the provided paths.
+func fetchSecrets(ctx context.Context, jobDetails shared.JobDetails) (map[string]string, error) {
+	secrets := make(map[string]string)
+	for key, path := range jobDetails.EnvVariables {
+
+		value, err := shared.ReadSecret(path)
+		if err != nil {
+			return nil, err
+		}
+		secrets[key] = value
+	}
+	return secrets, nil
 }
 
 func ProcessResultsActivity(ctx context.Context, mongoCollection *mongo.Collection, testResult string) (string, error) {
