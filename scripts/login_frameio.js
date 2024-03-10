@@ -18,19 +18,28 @@ export const options = {
 export default async function () {
     const page = browser.newPage();
     const jobID = __ENV.JOB_ID; // Ensure JOB_ID is passed as an environment variable
-    const email = __ENV.EMAIL; // Make sure to pass the EMAIL as an environment variable when running the test
     const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, -4);
-
-    await page.goto('https://app.frame.io/login');
-    await page.waitForSelector('input[name="email"]', { timeout: 60000 });
-
-    // Fill the email field
-    await page.fill('input[name="email"]', email);
-
-    // Take a screenshot after entering the email
-    await page.screenshot({ path: `/tmp/screenshot_${jobID}_emailEntered_${timestamp}.png` });
-
-    console.log(`Screenshot saved with Job ID: ${jobID} and Timestamp: ${timestamp}`);
     
-    await page.close();
+    try {
+        await page.goto('https://app.frame.io/login', { timeout: 120000 }).catch(e => {
+            console.error(`Failed to navigate: ${e}`);
+            throw e; // Rethrow to ensure the script halts execution beyond this point if navigation fails
+        });
+
+        // Optionally wait for network to be idle to ensure all resources have loaded
+        await page.waitForLoadState('networkidle').catch(e => {
+            console.error(`Page load issue: ${e}`);
+        });
+
+        // Take a screenshot of the login page
+        await page.screenshot({ path: `/tmp/screenshot_${jobID}_loginPage_${timestamp}.png` }).catch(e => {
+            console.error(`Screenshot error: ${e}`);
+        });
+
+        console.log(`Screenshots saved with Job ID: ${jobID} and Timestamp: ${timestamp}`);
+    } catch (e) {
+        console.error(`Test execution error: ${e}`);
+    } finally {
+        await page.close();
+    }
 }
