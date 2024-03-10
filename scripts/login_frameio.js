@@ -19,24 +19,20 @@ export default async function () {
     const page = browser.newPage();
     const jobID = __ENV.JOB_ID; // Ensure JOB_ID is passed as an environment variable
     const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, -4);
-    
+
+    // Optionally block images and CSS for faster loading if not needed for the screenshot
+    // await page.route('**/*.{png,jpg,jpeg,gif,css}', route => route.abort());
+
     try {
-        await page.goto('https://app.frame.io/login', { timeout: 120000 }).catch(e => {
-            console.error(`Failed to navigate: ${e}`);
-            throw e; // Rethrow to ensure the script halts execution beyond this point if navigation fails
-        });
+        await page.goto('https://www.frame.io', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-        // Optionally wait for network to be idle to ensure all resources have loaded
-        await page.waitForLoadState('networkidle').catch(e => {
-            console.error(`Page load issue: ${e}`);
-        });
+        // Adjust the timeout value based on expected page load times
+        // and potentially retry logic for robustness
+        
+        // Take a screenshot of the page once it's loaded
+        await page.screenshot({ path: `/tmp/screenshot_${jobID}_frameio_${timestamp}.png` });
 
-        // Take a screenshot of the login page
-        await page.screenshot({ path: `/tmp/screenshot_${jobID}_loginPage_${timestamp}.png` }).catch(e => {
-            console.error(`Screenshot error: ${e}`);
-        });
-
-        console.log(`Screenshots saved with Job ID: ${jobID} and Timestamp: ${timestamp}`);
+        console.log(`Screenshot saved with Job ID: ${jobID} and Timestamp: ${timestamp}`);
     } catch (e) {
         console.error(`Test execution error: ${e}`);
     } finally {
